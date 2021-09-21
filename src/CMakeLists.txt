@@ -4,7 +4,7 @@ include(CheckLibraryExists)
 if (${GDAL_LIBRARY_DIR})
   message("Searching GDAL library in provided ${GDAL_LIBRARY_DIR}")
 endif()
-
+message("Running CMakeLists in /src")
 check_library_exists(gdal GDALOpenEx "${GDAL_LIBRARY_DIR}" HAVE_UNIFIED_GDAL)
 if(NOT MSVC AND NOT HAVE_UNIFIED_GDAL)
   message(FATAL_ERROR "The GDAL version must be one that implements RFC 46 (GDAL/OGR unification) i.e. >= 2.0.0")

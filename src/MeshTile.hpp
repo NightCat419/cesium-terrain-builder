@@ -50,7 +50,7 @@ public:
   MeshTile();
 
   /// Create a mesh tile from a tile coordinate
-  MeshTile(const TileCoordinate &coord);
+  MeshTile(const TileCoordinate &coord, const Grid &grid);
 
   /// Write terrain data to the filesystem
   void
@@ -106,10 +106,16 @@ public:
   /// Get the mesh data
   ctb::Mesh & getMesh();
 
+  void
+  setExtensions(std::vector<float*> extensions);
+
 protected:
 
   /// The terrain mesh data
   ctb::Mesh mMesh;
+
+  Grid mGrid;
+  std::vector<float*> mExtensions;
 
 private:
 

@@ -42,6 +42,12 @@ class CTB_DLL ctb::MeshTiler :
 public:
 
   /// Instantiate a tiler with all required arguments
+  MeshTiler(GDALDataset *poDataset, const Grid &grid, const TilerOptions &options, std::vector<GDALDataset*> &extensions, double meshQualityFactor = 1.0):
+    TerrainTiler(poDataset, grid, options),
+    mMeshQualityFactor(meshQualityFactor),
+    mExtensions(extensions) {}
+
+  /// Instantiate a tiler with all required arguments
   MeshTiler(GDALDataset *poDataset, const Grid &grid, const TilerOptions &options, double meshQualityFactor = 1.0):
     TerrainTiler(poDataset, grid, options),
     mMeshQualityFactor(meshQualityFactor) {}
@@ -69,6 +75,8 @@ public:
   createMesh(GDALDataset *dataset, const TileCoordinate &coord, GDALDatasetReader *reader) const;
 
 protected:
+
+  std::vector<GDALDataset*> mExtensions;
 
   // Specifies the factor of the quality to convert terrain heightmaps to meshes.
   double mMeshQualityFactor;

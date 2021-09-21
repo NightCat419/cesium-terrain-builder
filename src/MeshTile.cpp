@@ -197,9 +197,10 @@ MeshTile::MeshTile():
   mChildren(0)
 {}
 
-MeshTile::MeshTile(const TileCoordinate &coord):
+MeshTile::MeshTile(const TileCoordinate &coord, const Grid &grid):
   Tile(coord),
-  mChildren(0)
+  mChildren(0),
+  mGrid(grid)
 {}
 
 /**
@@ -208,7 +209,7 @@ MeshTile::MeshTile(const TileCoordinate &coord):
 void 
 MeshTile::writeFile(const char *fileName, bool writeVertexNormals) const {
   CTBZFileOutputStream ostream(fileName);
-  writeFile(ostream);
+  writeFile(ostream, writeVertexNormals);
 }
 
 /**
@@ -365,6 +366,20 @@ MeshTile::writeFile(CTBOutputStream &ostream, bool writeVertexNormals) const {
       ostream.write(&xy.x, sizeof(unsigned char));
       ostream.write(&xy.y, sizeof(unsigned char));
     }
+
+    // write additional extensions 
+    extensionId = 28; // 1-27 reserved id for Cesium default extensions like vertex normals, water mask and so on.
+    for(float *extensionData : mExtensions){
+      ostream.write(&extensionId, sizeof(unsigned char));
+      int extensionLength = mGrid.tileSize() * mGrid.tileSize() * sizeof(float);
+      ostream.write(&extensionLength, sizeof(int));
+
+      for (size_t i = 0, icount = mGrid.tileSize() * mGrid.tileSize(); i < icount; i++) {
+        const float value = extensionData[i];
+        ostream.write(&value, sizeof(float));
+      }
+      extensionId++;
+    }
   }
 }
 
@@ -444,4 +459,9 @@ const Mesh & MeshTile::getMesh() const {
 
 Mesh & MeshTile::getMesh() {
   return mMesh;
+}
+
+void
+MeshTile::setExtensions(std::vector<float*> extensions){
+  mExtensions = extensions;
 }

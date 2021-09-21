@@ -105,6 +105,16 @@ public:
   }
 
   static void
+  setExtensions(command_t *command) {
+    istringstream e(command->arg);
+    string s;
+    while (getline(e, s, ' ')) {
+      cout << s << endl;
+      static_cast<TerrainBuild *>(Command::self(command))->extensions.push_back(s);
+    }
+  }
+
+  static void
   setOutputFormat(command_t *command) {
     static_cast<TerrainBuild *>(Command::self(command))->outputFormat = command->arg;
   }
@@ -228,6 +238,8 @@ public:
   const char *outputDir,
     *outputFormat,
     *profile;
+
+  vector<string> extensions;
 
   int threadCount,
     tileSize,
@@ -642,18 +654,18 @@ buildMesh(MeshSerializer &serializer, const MeshTiler &tiler, TerrainBuild *comm
   // DEBUG Chunker:
   #if 0
   const string dirname = string(command->outputDir) + osDirSep;
-  TileCoordinate coordinate(13, 8102, 6047);
+  TileCoordinate coordinate(8, 105, 194);
   MeshTile *tile = tiler.createMesh(tiler.dataset(), coordinate);
   //
-  const string txtname = CTBFileTileSerializer::getTileFilename(&coordinate, dirname, "wkt");
-  const Mesh &mesh = tile->getMesh();
-  mesh.writeWktFile(txtname.c_str());
+  // const string txtname = CTBFileTileSerializer::getTileFilename(&coordinate, dirname, "wkt");
+  // const Mesh &mesh = tile->getMesh();
+  // mesh.writeWktFile(txtname.c_str());
   //
   CRSBounds bounds = tiler.grid().tileBounds(coordinate);
   double x = bounds.getMinX() + 0.5 * (bounds.getMaxX() - bounds.getMinX());
   double y = bounds.getMinY() + 0.5 * (bounds.getMaxY() - bounds.getMinY());
   CRSPoint point(x,y);
-  TileCoordinate c = tiler.grid().crsToTile(point, coordinate.zoom);
+  // TileCoordinate c = tiler.grid().crsToTile(point, coordinate.zoom);
   //
   const string filename = CTBFileTileSerializer::getTileFilename(&coordinate, dirname, "terrain");
   tile->writeFile(filename.c_str(), writeVertexNormals);
@@ -715,6 +727,11 @@ runTiler(const char *inputFilename, TerrainBuild *command, Grid *grid, TerrainMe
     return 1;
   }
 
+  std::vector<GDALDataset*> extensions;
+  for(string extensionFile : command->extensions){
+    GDALDataset *dataset = (GDALDataset *) GDALOpen(inputFilename, GA_ReadOnly);
+    extensions.push_back(dataset);
+  }
   // Metadata of only this thread, it will be joined to global later
   TerrainMetadata *threadMetadata = metadata ? new TerrainMetadata() : NULL;
 
@@ -731,7 +748,7 @@ runTiler(const char *inputFilename, TerrainBuild *command, Grid *grid, TerrainMe
       const TerrainTiler tiler(poDataset, *grid);
       buildTerrain(serializer, tiler, command, threadMetadata);
     } else if (strcmp(command->outputFormat, "Mesh") == 0) {
-      const MeshTiler tiler(poDataset, *grid, command->tilerOptions, command->meshQualityFactor);
+      const MeshTiler tiler(poDataset, *grid, command->tilerOptions, extensions, command->meshQualityFactor);
       buildMesh(serializer, tiler, command, threadMetadata, command->vertexNormals);
     } else {                    // it's a GDAL format
       const RasterTiler tiler(poDataset, *grid, command->tilerOptions);
@@ -743,6 +760,9 @@ runTiler(const char *inputFilename, TerrainBuild *command, Grid *grid, TerrainMe
   }
   serializer.endSerialization();
 
+  for(GDALDataset *dataset : extensions){
+    GDALClose(dataset);
+  }
   GDALClose(poDataset);
 
   // Pass metadata to global instance.
@@ -779,6 +799,7 @@ main(int argc, char *argv[]) {
   command.option("-N", "--vertex-normals", "Write 'Oct-Encoded Per-Vertex Normals' for Terrain Lighting, only for `Mesh` format", TerrainBuild::setVertexNormals);
   command.option("-q", "--quiet", "only output errors", TerrainBuild::setQuiet);
   command.option("-v", "--verbose", "be more noisy", TerrainBuild::setVerbose);
+  command.option("-ex", "--extensions <files>", "specify tif file names to be added as extensions", TerrainBuild::setExtensions);
 
   // Parse and check the arguments
   command.parse(argc, argv);

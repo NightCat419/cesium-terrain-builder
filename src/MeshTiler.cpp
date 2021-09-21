@@ -20,6 +20,7 @@
  * @author Alvaro Huarte <ahuarte47@yahoo.es>
  */
 
+#include <vector>
 #include "CTBException.hpp"
 #include "MeshTiler.hpp"
 #include "HeightFieldChunker.hpp"
@@ -197,9 +198,16 @@ ctb::MeshTiler::createMesh(GDALDataset *dataset, const TileCoordinate &coord) co
   float *rasterHeights = ctb::GDALDatasetReader::readRasterHeights(*this, dataset, coord, mGrid.tileSize(), mGrid.tileSize());
 
   // Get a mesh tile represented by the tile coordinate
-  MeshTile *terrainTile = new MeshTile(coord);
+  MeshTile *terrainTile = new MeshTile(coord, mGrid);
   prepareSettingsOfTile(terrainTile, dataset, coord, rasterHeights, mGrid.tileSize(), mGrid.tileSize());
   CPLFree(rasterHeights);
+
+  std::vector<float *> extensionValues;
+  for(GDALDataset *extensionDataset : mExtensions){
+    float *extensionValue = ctb::GDALDatasetReader::readRasterHeights(*this, extensionDataset, coord, mGrid.tileSize(), mGrid.tileSize());
+    extensionValues.push_back(extensionValue);
+  }
+  terrainTile->setExtensions(extensionValues);
 
   return terrainTile;
 }
@@ -210,9 +218,16 @@ ctb::MeshTiler::createMesh(GDALDataset *dataset, const TileCoordinate &coord, ct
   float *rasterHeights = reader->readRasterHeights(dataset, coord, mGrid.tileSize(), mGrid.tileSize());
 
   // Get a mesh tile represented by the tile coordinate
-  MeshTile *terrainTile = new MeshTile(coord);
+  MeshTile *terrainTile = new MeshTile(coord, mGrid);
   prepareSettingsOfTile(terrainTile, dataset, coord, rasterHeights, mGrid.tileSize(), mGrid.tileSize());
   CPLFree(rasterHeights);
+
+  std::vector<float *> extensionValues;
+  for(GDALDataset *extensionDataset : mExtensions){
+    float *extensionValue = reader->readRasterHeights(extensionDataset, coord, mGrid.tileSize(), mGrid.tileSize());
+    extensionValues.push_back(extensionValue);
+  }
+  terrainTile->setExtensions(extensionValues);
 
   return terrainTile;
 }
