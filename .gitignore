@@ -1,3 +1,12 @@
 build/
 doc/html
 doc/latex
+.history
+data/
+deps/
+CMakeFiles/
+*.cmake
+Makefile
+*.code-workspace
+CMakeCache.txt
+config.hpp
