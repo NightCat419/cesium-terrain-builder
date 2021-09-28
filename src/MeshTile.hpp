@@ -106,8 +106,10 @@ public:
   /// Get the mesh data
   ctb::Mesh & getMesh();
 
+  std::vector<std::vector<float>> & getExtensions();
+
   void
-  setExtensions(std::vector<float*> extensions);
+  setExtensions(std::vector<std::vector<float>> extensions);
 
 protected:
 
@@ -115,7 +117,7 @@ protected:
   ctb::Mesh mMesh;
 
   Grid mGrid;
-  std::vector<float*> mExtensions;
+  std::vector<std::vector<float>> mExtensions;
 
 private:
 

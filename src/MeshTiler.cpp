@@ -37,6 +37,9 @@ class WrapperMesh : public ctb::chunk::mesh {
 private:
   CRSBounds &mBounds;
   Mesh &mMesh;
+  std::vector<std::vector<float>> &mExtensions;
+  std::vector<float *> &mRasterExtensions;
+  std::vector<ctb::chunk::heightfield *> mRasterExtensionFields;
   double mCellSizeX;
   double mCellSizeY;
 
@@ -46,13 +49,32 @@ private:
   int mTriIndex;
 
 public:
-  WrapperMesh(CRSBounds &bounds, Mesh &mesh, i_tile tileSizeX, i_tile tileSizeY):
+  WrapperMesh(CRSBounds &bounds, Mesh &mesh, std::vector<std::vector<float>> &extensions, std::vector<float *> rasterExtensions, i_tile tileSizeX, i_tile tileSizeY):
     mMesh(mesh),
+    mExtensions(extensions),
+    mRasterExtensions(rasterExtensions),
     mBounds(bounds),
     mTriOddOrder(false),
     mTriIndex(0) {
     mCellSizeX = (bounds.getMaxX() - bounds.getMinX()) / (double)(tileSizeX - 1);
     mCellSizeY = (bounds.getMaxY() - bounds.getMinY()) / (double)(tileSizeY - 1);
+    for(float *rasterExtension : mRasterExtensions){
+      mRasterExtensionFields.push_back(new ctb::chunk::heightfield(rasterExtension, mCellSizeX));
+      mExtensions.push_back(std::vector<float>());
+    }
+  }
+
+  ~WrapperMesh(){
+    for(ctb::chunk::heightfield *rasterExtensionField : mRasterExtensionFields){
+      rasterExtensionField->clear();
+      CPLFree(rasterExtensionField);
+    }
+    mRasterExtensionFields.clear();
+
+    // for(float *rasterExtension : mRasterExtensions){
+    //   CPLFree(rasterExtension);
+    // }
+    mRasterExtensions.clear();
   }
 
   virtual void clear() {
@@ -62,6 +84,7 @@ public:
     mTriOddOrder = false;
     mTriIndex = 0;
   }
+
   virtual void emit_vertex(const ctb::chunk::heightfield &heightfield, int x, int y) {
     mTriangles[mTriIndex].x = x;
     mTriangles[mTriIndex].y = y;
@@ -101,6 +124,12 @@ public:
       double height = heightfield.height(x, y);
 
       mMesh.vertices.push_back(CRSVertex(xmin + (x * mCellSizeX), ymax - (y * mCellSizeY), height));
+      int i = 0;
+      for(ctb::chunk::heightfield *rasterExtensionField : mRasterExtensionFields){
+        float extensionValue = rasterExtensionField->height(x, y);
+        mExtensions[i].push_back(extensionValue);
+        i++;
+      }
       mIndicesMap.insert(std::make_pair(index, iv));
     }
     else {
@@ -113,7 +142,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 void 
-ctb::MeshTiler::prepareSettingsOfTile(MeshTile *terrainTile, GDALDataset *dataset, const TileCoordinate &coord, float *rasterHeights, ctb::i_tile tileSizeX, ctb::i_tile tileSizeY) const {
+ctb::MeshTiler::prepareSettingsOfTile(MeshTile *terrainTile, GDALDataset *dataset, const TileCoordinate &coord, 
+    float *rasterHeights, std::vector<float *> &rasterExtensions, ctb::i_tile tileSizeX, ctb::i_tile tileSizeY) const {
   const ctb::i_tile TILE_SIZE = tileSizeX;
 
   // Number of tiles in the horizontal direction at tile level zero.
@@ -164,7 +194,8 @@ ctb::MeshTiler::prepareSettingsOfTile(MeshTile *terrainTile, GDALDataset *datase
   }
   ctb::CRSBounds mGridBounds = mGrid.tileBounds(coord);
   Mesh &tileMesh = terrainTile->getMesh();
-  WrapperMesh mesh(mGridBounds, tileMesh, tileSizeX, tileSizeY);
+  std::vector<std::vector<float>> &extensions = terrainTile->getExtensions();
+  WrapperMesh mesh(mGridBounds, tileMesh, extensions, rasterExtensions, tileSizeX, tileSizeY);
   heightfield.generateMesh(mesh, 0);
   heightfield.clear();
 
@@ -197,17 +228,15 @@ ctb::MeshTiler::createMesh(GDALDataset *dataset, const TileCoordinate &coord) co
   // Copy the raster data into an array
   float *rasterHeights = ctb::GDALDatasetReader::readRasterHeights(*this, dataset, coord, mGrid.tileSize(), mGrid.tileSize());
 
-  // Get a mesh tile represented by the tile coordinate
-  MeshTile *terrainTile = new MeshTile(coord, mGrid);
-  prepareSettingsOfTile(terrainTile, dataset, coord, rasterHeights, mGrid.tileSize(), mGrid.tileSize());
-  CPLFree(rasterHeights);
-
   std::vector<float *> extensionValues;
   for(GDALDataset *extensionDataset : mExtensions){
     float *extensionValue = ctb::GDALDatasetReader::readRasterHeights(*this, extensionDataset, coord, mGrid.tileSize(), mGrid.tileSize());
     extensionValues.push_back(extensionValue);
   }
-  terrainTile->setExtensions(extensionValues);
+  // Get a mesh tile represented by the tile coordinate
+  MeshTile *terrainTile = new MeshTile(coord, mGrid);
+  prepareSettingsOfTile(terrainTile, dataset, coord, rasterHeights, extensionValues, mGrid.tileSize(), mGrid.tileSize());
+  CPLFree(rasterHeights);
 
   return terrainTile;
 }
@@ -217,17 +246,16 @@ ctb::MeshTiler::createMesh(GDALDataset *dataset, const TileCoordinate &coord, ct
   // Copy the raster data into an array
   float *rasterHeights = reader->readRasterHeights(dataset, coord, mGrid.tileSize(), mGrid.tileSize());
 
-  // Get a mesh tile represented by the tile coordinate
-  MeshTile *terrainTile = new MeshTile(coord, mGrid);
-  prepareSettingsOfTile(terrainTile, dataset, coord, rasterHeights, mGrid.tileSize(), mGrid.tileSize());
-  CPLFree(rasterHeights);
-
   std::vector<float *> extensionValues;
   for(GDALDataset *extensionDataset : mExtensions){
     float *extensionValue = reader->readRasterHeights(extensionDataset, coord, mGrid.tileSize(), mGrid.tileSize());
     extensionValues.push_back(extensionValue);
   }
-  terrainTile->setExtensions(extensionValues);
+  // Get a mesh tile represented by the tile coordinate
+  MeshTile *terrainTile = new MeshTile(coord, mGrid);
+  prepareSettingsOfTile(terrainTile, dataset, coord, rasterHeights, extensionValues, mGrid.tileSize(), mGrid.tileSize());
+
+  CPLFree(rasterHeights);
 
   return terrainTile;
 }

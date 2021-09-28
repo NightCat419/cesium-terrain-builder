@@ -361,7 +361,7 @@ MeshTile::writeFile(CTBOutputStream &ostream, bool writeVertexNormals) const {
       normalsPerVertex[indexV1] = normalsPerVertex[indexV1] + weightedNormal;
       normalsPerVertex[indexV2] = normalsPerVertex[indexV2] + weightedNormal;
     }
-    for (size_t i = 0; i < vertexCount; i++) {
+    for (int i = 0; i < vertexCount; i++) {
       Coordinate<unsigned char> xy = octEncode(normalsPerVertex[i].normalize());
       ostream.write(&xy.x, sizeof(unsigned char));
       ostream.write(&xy.y, sizeof(unsigned char));
@@ -369,12 +369,12 @@ MeshTile::writeFile(CTBOutputStream &ostream, bool writeVertexNormals) const {
 
     // write additional extensions 
     extensionId = 28; // 1-27 reserved id for Cesium default extensions like vertex normals, water mask and so on.
-    for(float *extensionData : mExtensions){
+    for(std::vector<float> extensionData : mExtensions){
       ostream.write(&extensionId, sizeof(unsigned char));
-      int extensionLength = mGrid.tileSize() * mGrid.tileSize() * sizeof(float);
+      int extensionLength = vertexCount * sizeof(float);
       ostream.write(&extensionLength, sizeof(int));
 
-      for (size_t i = 0, icount = mGrid.tileSize() * mGrid.tileSize(); i < icount; i++) {
+      for (int i = 0; i < vertexCount; i++) {
         const float value = extensionData[i];
         ostream.write(&value, sizeof(float));
       }
@@ -461,7 +461,11 @@ Mesh & MeshTile::getMesh() {
   return mMesh;
 }
 
+std::vector<std::vector<float>> & MeshTile::getExtensions() {
+  return mExtensions;
+}
+
 void
-MeshTile::setExtensions(std::vector<float*> extensions){
+MeshTile::setExtensions(std::vector<std::vector<float>> extensions){
   mExtensions = extensions;
 }
